@@ -1,0 +1,29 @@
+module.exports = {
+
+	/* hostname and port */
+	"hostname": "localhost",
+	"port": 9999,
+
+	/* the directory where the tiles are stored */
+	"tiles": "./data",
+
+	/* the tile backends */
+	"backends": {
+		"terrain": {
+			"url": "http://{s}.tile.stamen.com/terrain/{z}/{x}/{y}.jpg",
+			"sub": ["a","b","c","d"],
+			"zoom": [6,12],
+			"boundaries": null
+		}
+	},
+	
+	/* the default tile */
+	"default-image": "assets/default-tile.png",
+	
+	/* allowed extensions */
+	"allowed-extensions": ["png","jpg"],
+	
+	/* redirect users to this url when they try to access the index page */
+	"redirect-url": "http://example.com/"
+	
+}
