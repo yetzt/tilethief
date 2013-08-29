@@ -9,9 +9,9 @@ module.exports = {
 
 	/* the tile backends */
 	"backends": {
-		"terrain": {
-			"url": "http://{s}.tile.stamen.com/terrain/{z}/{x}/{y}.jpg",
-			"sub": ["a","b","c","d"],
+		"osm": {
+			"url": "http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+			"sub": ["a","b"],
 			"zoom": [6,12],
 			"boundaries": null
 		}
