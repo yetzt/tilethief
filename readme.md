@@ -15,6 +15,5 @@ rename `config.js.dist` to `config.js` and edit the settings with your favorite 
 ## Todo
 
 * Tile boundaries
-* Less invasive tile retrievement
 * Tile expiration
 * Nginx sample config

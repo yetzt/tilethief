@@ -1,6 +1,6 @@
 {
 	"name": "tilethief",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "A mirroring map tile proxy",
 	"licenses": [{
 		"type": "Public Domain",
@@ -14,7 +14,7 @@
 	}],
 	"main": "./tilethief.js",
 	"bin": {
-		"bundesscraper": "./tilethief.js"
+		"tilethief": "./tilethief.js"
 	},
 	"repository": {
 		"type": "git",
@@ -26,11 +26,13 @@
 		"cache",
 		"mirror",
 		"tile",
-		"geo"
+		"geo",
+		"osm"
 	],
 	"dependencies": {
 		"request": ">= 2.14.0",
-		"express": ">= 3.1.0"
+		"express": ">= 3.1.0",
+		"async": ">= 0.2.9"
 	},
 	"engines": {
 		"node": ">= 0.8.15"
