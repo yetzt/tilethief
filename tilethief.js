@@ -205,7 +205,7 @@ app.get('/:backend/:z/:x/:y.:ext', function (req, res) {
 });
 
 app.get('/', function (req, res) {
-	res.redirect(config["redirect_url"]);
+	res.redirect(config["redirect-url"]);
 });
 
 /* startup express server server */
