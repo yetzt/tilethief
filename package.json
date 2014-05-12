@@ -1,7 +1,7 @@
 {
 	"name": "tilethief",
-	"version": "0.1.1",
-	"description": "A mirroring map tile proxy",
+	"version": "0.2.0",
+	"description": "a mirroring map tile proxy",
 	"licenses": [{
 		"type": "Public Domain",
 		"url": "http://unlicense.org/UNLICENSE"
@@ -27,14 +27,17 @@
 		"mirror",
 		"tile",
 		"geo",
-		"osm"
+		"osm",
+		"tms"
 	],
 	"dependencies": {
-		"request": ">= 2.14.0",
-		"express": ">= 3.1.0",
-		"async": ">= 0.2.9"
+		"request": ">= 2.34.0",
+		"express": ">= 4.2.0",
+		"async": ">= 0.8.0",
+		"commander": ">= 2.2.0",
+		"lru-files": ">= 0.0.4"
 	},
 	"engines": {
-		"node": ">= 0.8.15"
+		"node": ">= 0.10"
 	}
 }

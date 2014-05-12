@@ -1,21 +1,46 @@
 module.exports = {
 
-	/* hostname and port */
-	"hostname": "localhost",
-	"port": 9999,
+	/* express settings */
+	"app": {
+		"proxied": true,
+		"env": "production",
+		"socket": false, // socket overrides hostname and port
+		"hostname": "localhost",
+		"port": 46000
+	},
 
-	/* the directory where the tiles are stored */
-	"tiles": "./data",
+	/* lru tile cache */
+	"cache": {
+		"dir": "./data",
+		"files": 65536,
+		"size": "1 GB",
+		"age": "4 Weeks",
+		"check": "1 Hour"
+	},
+
+	/* load backends from url */
+	"backend-url": false, // point this to a json with the contents of config.backends
 
 	/* the tile backends */
 	"backends": {
 		"osm": {
 			"url": "http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+			"filetypes": ["png"],
 			"sub": ["a","b"],
 			"zoom": [6,12],
-			"boundaries": null
+			"boundaries": [-123, 36, -115, 39] // west, south, east, north
+		},
+		"stamen-terrain": {
+			"url": "http://{s}.tile.stamen.com/terrain/{z}/{x}/{y}.jpg",
+			"filetypes": ["jpg"],
+			"sub": ["a","b","c","d"],
+			"zoom": [4,18],
+			"boundaries": [-135, 16.5, -55, 55] // west, south, east, north
 		}
 	},
+	
+	/* max number of concurrent connections to backend servers */
+	"connections": 23,
 	
 	/* the default tile */
 	"default-image": "assets/default-tile.png",
@@ -24,6 +49,6 @@ module.exports = {
 	"allowed-extensions": ["png","jpg"],
 	
 	/* redirect users to this url when they try to access the index page */
-	"redirect-url": "http://example.com/"
+	"redirect-url": false
 	
-}
+};

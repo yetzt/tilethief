@@ -12,8 +12,14 @@ npm install tilethief
 
 rename `config.js.dist` to `config.js` and edit the settings with your favorite editor
 
+## Usage
+
+see
+
+````
+tilethief --help
+````
+
 ## Todo
 
-* Tile boundaries
-* Tile expiration
 * Nginx sample config

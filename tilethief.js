@@ -1,214 +1,237 @@
 #!/usr/bin/env node
 
 /* get node modules */
-var fs = require("fs");
+var stream = require("stream");
 var path = require("path");
 var http = require("http");
+var fs = require("fs");
 
 /* get npm modules */
+var commander = require("commander");
+var lrufiles = require("lru-files");
 var request = require("request");
 var express = require("express");
 var async = require("async");
 
-/* get config */
-var config = require(__dirname+"/config.js");
+/* read package */
+var pkg = require(path.resolve(__dirname, "package.json"));
+
+/* command line arguments */
+commander
+	.version(pkg.version)
+	.option("-f, --flush", "flush cache")
+	.option("-v, --verbose", "be verbose")
+	.option("-c, --config <file>", "config file")
+	.parse(process.argv);
+
+/* find config file and require it */
+if (commander.config) {
+	var _configfile = path.resolve(process.cwd(), commander.config);
+	if (fs.existsSync(_configfile)){
+		var config = require(_configfile);
+	} else {
+		console.error("config file not found");
+		process.exit();
+	}
+} else {
+	var _configfile = path.resolve(__dirname, "config.js");
+	if (fs.existsSync(_configfile)){
+		var config = require(_configfile);
+	} else {
+		console.error('config file not found');
+		process.exit();
+	}
+}
+
+/* check if backend url is provides */
+if (config.hasOwnProperty("backend-url") && typeof config["backend-url"] === "string") {
+	request.get({
+		url: config["backend-url"],
+		json: true
+	}, function(err, resp, data){
+		if (err) return console.error("could not load backend url", config["backend-url"]);
+		if (resp.statusCode !== 200) return console.error("could not load backend url", config["backend-url"]);
+		if (typeof data !== "object") return console.error("could not load backend url", config["backend-url"]);
+		
+		/* repace backends with remote data */
+		if (!config.hasOwnProperty("backends") || typeof config.backends !== "object") config.backends = {};
+		for (backend in data) config.backends[backend] = data[backend];
+		if (commander.verbose) console.log("loaded backends from", config["backend-url"], ":", Object.keys(data).join(", "));
+	});
+}
+
+/* setup generic async queue */ //FIXME: use this
+var queue = async.queue(function(task, callback) { 
+	task.fun(function(err, data){
+		task.callback(err, data);
+		callback();
+	});
+}, (config.connections||23));
+
+/* cache */
+var cache = new lrufiles(config.cache);
+if (commander.flush) cache.purge();
 
 /* initialize express */
 var app = express();
 
 /* configure express */
-app.set('port', process.env.PORT || config.port || 8080);
-app.set('hostname', process.env.HOSTNAME || config.hostname || 'localhost');
+app.set("trust proxy", config.app.proxied);
+app.set("env", config.app.env);
 
-/* load default image */
-var default_image = fs.readFileSync(path.resolve(__dirname, config["default-image"]));
+/* own x-powered-by header middleware */
+app.use(function(req, res, next){
+	res.setHeader('X-Powered-By', (pkg.name+"/"+pkg.version));
+	next();
+});
 
-/* setup async queue */
-var queue = async.queue(function(t, callback) { 
-	t(callback);
-}, 23);
+/* tile bound helpers */
+var _tile_lon = function(x,z){
+	return (x/Math.pow(2,z)*360-180);
+};
 
-/* rekursive directory creation */
-var mkdirp = function(dir, callback) {
-	var _dir = path.resolve(dir);
-	fs.exists(_dir, function(exists){
-		if (exists) {
-			callback(null);
-		} else {
-			mkdirp(path.dirname(_dir), function(err){
-				if (err) {
-					callback(err);
-				} else {
-					fs.mkdir(_dir, function(err){
-						if (err && err.code === 'EEXIST') {
-							callback(null);
-						} else {
-							callback(err);
-						}
-					});
-				}
-			});
-		}
-	});
+var _tile_lat = function (y,z){
+	var n=Math.PI-2*Math.PI*y/Math.pow(2,z);
+	return (180/Math.PI*Math.atan(0.5*(Math.exp(n)-Math.exp(-n))));
+};
+
+/* check bounding box */
+var _check_bbox = function(z, x, y, bbox) {
+	/* check for valid bbox, otherwise allow */
+	if (!bbox || !(bbox instanceof Array) || bbox.length !== 4) return true;
+	/* check bbox */
+	if (_tile_lon(x+1,z) < bbox[0]) return false;
+	if (_tile_lat(y,z) < bbox[1]) return false;
+	if (_tile_lon(y,z) > bbox[2]) return false;
+	if (_tile_lat(y+1,z) > bbox[3]) return false;
+	/* everything is fine */
+	return true;
 };
 
 /* generate backend url */
-var get_backend_url = function(params) {
+var _backend_url = function(backend, z, x, y) {
+
+	/* get backend */
+	var _backend = config["backends"][backend];
 
 	/* get url from backend */
-	var _url = config["backends"][params.backend].url;
+	var _url = _backend.url;
 
 	/* check for subdomains */
-	if (_url.match(/\{s\}/) && "sub" in config["backends"][params.backend] && Object.prototype.toString.call(config["backends"][params.backend]["sub"]) === '[object Array]' && config["backends"][params.backend]["sub"].length > 0) {
-		_url = _url.replace(/\{s\}/g, config["backends"][params.backend]["sub"][Math.floor(Math.random() * config["backends"][params.backend]["sub"].length)]);
+	if (_url.match(/\{s\}/) && _backend.hasOwnProperty("sub") && (_backend.sub instanceof Array) && _backend.sub.length > 0) {
+		_url = _url.replace(/\{s\}/g, _backend.sub[Math.floor(Math.random() * _backend.sub.length)]);
 	}
 
 	/* replace url variabeles and return */
-	return _url.replace(/\{x\}/g, params.x).replace(/\{y\}/g, params.y).replace(/\{z\}/g, params.z);
+	return _url.replace(/\{x\}/g, x).replace(/\{y\}/g, y).replace(/\{z\}/g, z);
 
 };
 
-/* resolve local tile path */
-var get_tile_file = function(params) {
-	return path.resolve(__dirname, config["tiles"], params.backend, params.z, params.x, params.y+'.'+params.ext);
+/* error tile helper */
+var default_image = fs.readFileSync(path.resolve(__dirname, config["default-image"]));
+
+/* route for 404 images */
+app.get('/404.png', function(req, res){
+	res.status(404);
+	res.type("image/png");
+	res.send(default_image);
+});
+
+/* serve tile */
+app.get('/:backend/:z/:x/:y.:ext', function(req,res){
+	
+	/* check if extension is allowed et al */
+	if (config["allowed-extensions"].indexOf(req.params.ext) < 0) return res.send(500);
+	
+	/* check if backend exists */
+	if (!config.backends.hasOwnProperty(req.params.backend)) return res.send(500);
+	
+	/* check if backend allows extension */
+	if (config.backends[req.params.backend].hasOwnProperty("filetypes") && (config.backends[req.params.backend].filetypes instanceof Array) && config.backends[req.params.backend].filetypes.indexOf(req.params.ext) < 0) return res.send(500);
+	
+	/* check if zoom level is within backends allowed range */
+	if (config.backends[req.params.backend].hasOwnProperty("zoom") && (config.backends[req.params.backend].zoom instanceof Array) && (req.params.z < config.backends[req.params.backend].zoom[0] || req.params.z > config.backends[req.params.backend].zoom[1])) return res.redirect('/404.png');
+	
+	/* check if boundaries are within backends allowed bounding box */
+	if (config.backends[req.params.backend].hasOwnProperty("boundaries") && (config.backends[req.params.backend].boundaries instanceof Array) && config.backends[req.params.backend].boundaries && !_check_bbox(req.params.z, req.params.x, req.params.y, config.backends[req.params.backend].boundaries)) return res.redirect('/404.png');
+
+	var _tile_file = path.join(req.params.backend, req.params.z, req.params.x, req.params.y+'.'+req.params.ext);
+
+	if (cache.check(_tile_file, function(exists){
+		if (exists) {
+			// FIXME: set headers
+			cache.stream(_tile_file).pipe(res);
+		} else {
+			var _tile_url = _backend_url(req.params.backend, req.params.z, req.params.x, req.params.y);
+			// FIXME: put this in queue
+			request.get(_tile_url).on('response', function(resp){
+				if (resp.statusCode === 200 && /^image\//.test(resp.headers["content-type"])) { // FIXME: check length and headers
+					var pass = new stream.PassThrough;
+					cache.add(_tile_file, pass, function(err, filename){
+						// FIXME: better logging
+						if (err) console.error("[tilethief] cache error writing:", _tile_file, err);
+						if (commander.verbose) console.error("[tilethief] cached:", _tile_file);
+					})
+					// FIXME: set headers
+					this.pipe(res);
+					this.pipe(pass);
+				} else {
+					// FIXME: send concrete tile
+					res.redirect('/404.png');
+				}
+			});
+		}
+	}));
+	
+});
+
+/* index page */
+if (config.hasOwnProperty("redirect-url") && typeof config["redirect-url"] === "string") {
+	app.get('/', function(req, res) {
+		res.redirect(config["redirect-url"]);
+	});
+} else {
+	/* show simple index page */
+	app.get('/', function(req, res) {
+		res.send('<html><head><title>Ready</title></head><body bgcolor="white"><center><h1>Ready</h1></center><hr><center>'+(pkg.name+"/"+pkg.version)+'</center></body></html>');
+	});
 }
 
-/* get the tile from storage or fetch ad cache */
-var get_tile = function(params, callback){
-	
-	var tile_file = get_tile_file(params);
-
-	/* check if tile exists and has more than zero bytes */
-	fs.exists(tile_file, function(e){		
-		if (e) {
-			
-			/* check if file size is greater than zero bytes */
-			fs.stat(tile_file, function(err, stat){
-				if (!err && stat.size > 0) {
-					/* everything seems fine */
-					callback(null, tile_file);
-				} else {
-					/* unlink file and refetch */
-					fs.unlink(tile_file, function(err){
-						queue.push(function(_callback){
-							fetch_tile(params, function(err,data){
-								callback(err, data);
-								_callback();
-							});
-						});
-					});
-				}
-			});
-		} else {
-			
-			/* fetch */
-			queue.push(function(_callback){
-				fetch_tile(params, function(err,data){
-					callback(err, data);
-					_callback();
-				});
-			});
-		}
-	});
-};
-
-/* fetch tile via http */
-var fetch_tile = function(params, callback) {
-	
-	var tile_file = get_tile_file(params);
-	var tile_url = get_backend_url(params);
-
-	mkdirp(path.dirname(tile_file), function (err) {
-		if (err) {
-			console.error("[tilethief] Could not create directory", path.dirname(tile_file), err);
-			return callback(err);
-		}
-
-		/* get head to check if a tile is retrievable */
-		request.head(tile_url, function (err, resp, data) {
-			if (err || resp.statusCode !== 200 || !(resp.headers["content-type"].match(/^image\//))) {
-				// console.error("[Tilethief] Could not fetch tile from backend", tile_url);
-				return callback(new Error('Could not fetch tile from backend'));
-			}
-		
-			/* create write stream for cache file */
-			var ws = fs.createWriteStream(tile_file);
-
-			/* create scoped error object */
-			var error = null;
-		
-			ws.on('close', function (err) {
-				error = error || err;
-				if (error) {
-					console.error("[tilethief] could not fetch tile from backend", tile_url);
-					callback(error);
-				} else {
-					/* ckeck if file size is more than zero bytes */
-					fs.stat(tile_file, function(err, stat){
-						if (!err && stat.size > 0) {
-							/* everything seems fine */
-							callback(null, tile_file);
-						} else {
-							/* unlink file and refetch */
-							fs.unlink(tile_file, function(err){
-								callback(new Error("[tilethief] server sent empty tile"));
-							});
-						}
-					});
-				}
-			});
-
-			request(tile_url).on('error', function(err){
-				error = err;
-				ws.end();
-			}).on('end',function () {
-				ws.end();
-			}).pipe(ws);
-
-		});
-		
-	});
-	
-};
-
-/* tile request */
-app.get('/:backend/:z/:x/:y.:ext', function (req, res) {
-	
-	if (!config["allowed-extensions"].indexOf(req.params.ext) < 0) {
-		res.send(500);
-		return;
-	}
-	
-	if (!(req.params.backend in config["backends"])) {
-		res.status(200);
-		res.type("image/png");
-		res.send(default_image);
-		return;
-	}
-	
-	/* check zoom level */
-	if (("zoom" in config["backends"][req.params.backend]) && config["backends"][req.params.backend].zoom && (req.params.z < config["backends"][req.params.backend]["zoom"][0] || req.params.z > config["backends"][req.params.backend]["zoom"][1])) {
-		res.status(200);
-		res.type("image/png");
-		res.send(default_image);
-		return;
-	}
-	
-	/* FIXME: check boundaries */
-	
-	/* serve file */
-	get_tile(req.params, function(err, file){
-		if (err) return res.status(200).type("image/png").send(default_image);
-		res.status(200).sendfile(file);
-	});
-	
+/* default http response */
+app.all('*', function(req, res){
+	res.redirect('/');
 });
 
-app.get('/', function (req, res) {
-	res.redirect(config["redirect_url"]);
-});
+/* make express listen */
+if (config.app.hasOwnProperty("socket") && typeof config.app.socket === "string") {
+	/* listen at socket */	
+	var mask = process.umask(0);
+	if (fs.existsSync(config.listen.socket)) {
+		console.log("unlinking old socket");
+		fs.unlinkSync(config.listen.socket);
+	}
+	app._server = app.listen(config.app.socket, function() {
+		if (mask) {
+			process.umask(mask);
+			var mask = null;
+		}
+		if (commander.verbose) console.error("listening on socket "+config.app.socket);
+	});
+} else if (config.app.hasOwnProperty("hostname") && typeof config.app.hostname === "string") {
+	/* listen at hostname and port */	
+	app._server = app.listen((parseInt(config.app.port,10) || 46000), config.app.hostname, function(){
+		if (commander.verbose) console.error("listening on *:"+(parseInt(config.app.port,10) || 46000));
+	});
+} else {
+	/* listen at port only */
+	app._server = app.listen((parseInt(config.app.port,10) || 46000), function(){
+		if (commander.verbose) console.error("listening on *:"+(parseInt(config.app.port,10) || 46000));
+	});
+}
 
-/* startup express server server */
-http.createServer(app).listen(app.get('port'), app.get('hostname'), function(){
-	console.log('tilethief listening on '+app.get('hostname')+':'+app.get('port'));
+/* gracefully shutdown on exit */
+process.on("exit", function () {
+	app._server.close(function() {
+		console.log("server stopped listening")
+	});
 });
