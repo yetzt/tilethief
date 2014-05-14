@@ -221,6 +221,9 @@ app.get('/404.png', function(req, res){
 
 /* serve tile */
 app.get('/:backend/:z/:x/:y.:ext', function(req,res){
+
+	/* round zoom level since this leaflet sometimes likes to send floats; see https://github.com/Leaflet/Leaflet/issues/1934 */
+	req.params.z = Math.round(req.params.z);
 	
 	/* check if extension is allowed et al */
 	if (config["allowed-extensions"].indexOf(req.params.ext) < 0) return res.send(500);
