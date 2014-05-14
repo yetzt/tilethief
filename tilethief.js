@@ -11,6 +11,8 @@ var commander = require("commander");
 var lrufiles = require("lru-files");
 var request = require("request");
 var express = require("express");
+var tracer = require("tracer");
+var color = require("cli-color");
 var async = require("async");
 
 /* read package */
@@ -20,9 +22,37 @@ var pkg = require(path.resolve(__dirname, "package.json"));
 commander
 	.version(pkg.version)
 	.option("-f, --flush", "flush cache")
-	.option("-v, --verbose", "be verbose")
+	.option("-v, --verbose", "be verbose", function(v,total){ return total+=1; }, 0)
 	.option("-c, --config <file>", "config file")
 	.parse(process.argv);
+
+/* logger */
+var logger = (function(){
+	/* set log level according to verbosity */
+	switch (commander.verbose) {
+		case 0: var _level = "warn"; break;
+		case 1: var _level = "info"; break;
+		default: var _level = "debug"; break;
+	}
+	/* set colors on tty only */
+	if (process.stdout.isTTY) {
+		return new tracer.colorConsole({
+			format: [
+				color.xterm(199).bgXterm(235)("["+pkg.name+"]"),
+				color.xterm(204)("{{timestamp}}"),
+				"{{message}}"
+			].join(" "),
+			level: _level,
+			dateformat : "yyyy-mm-dd HH:MM:ss"
+		});
+	} else {
+		return new tracer.console({
+			format: "["+pkg.name+"] {{timestamp}} {{message}}",
+			level: _level,
+			dateformat : "yyyy-mm-dd HH:MM:ss"
+		});
+	}
+})();
 
 /* find config file and require it */
 if (commander.config) {
@@ -30,7 +60,7 @@ if (commander.config) {
 	if (fs.existsSync(_configfile)){
 		var config = require(_configfile);
 	} else {
-		console.error("config file not found");
+		logger.error("config file not found");
 		process.exit();
 	}
 } else {
@@ -38,7 +68,7 @@ if (commander.config) {
 	if (fs.existsSync(_configfile)){
 		var config = require(_configfile);
 	} else {
-		console.error('config file not found');
+		logger.error('config file not found');
 		process.exit();
 	}
 }
@@ -49,14 +79,14 @@ if (config.hasOwnProperty("backend-url") && typeof config["backend-url"] === "st
 		url: config["backend-url"],
 		json: true
 	}, function(err, resp, data){
-		if (err) return console.error("could not load backend url", config["backend-url"]);
-		if (resp.statusCode !== 200) return console.error("could not load backend url", config["backend-url"]);
-		if (typeof data !== "object") return console.error("could not load backend url", config["backend-url"]);
+		if (err) return logger.error("could not load backend url", config["backend-url"]);
+		if (resp.statusCode !== 200) return logger.error("could not load backend url %s", config["backend-url"]);
+		if (typeof data !== "object") return logger.error("could not load backend url %s", config["backend-url"]);
 		
 		/* repace backends with remote data */
 		if (!config.hasOwnProperty("backends") || typeof config.backends !== "object") config.backends = {};
 		for (backend in data) config.backends[backend] = data[backend];
-		if (commander.verbose) console.log("loaded backends from", config["backend-url"], ":", Object.keys(data).join(", "));
+		if (commander.verbose) logger.info("loaded %d backends from %s", Object.keys(data).length, config["backend-url"]);
 	});
 }
 
@@ -69,8 +99,12 @@ var queue = async.queue(function(task, callback) {
 }, (config.connections||23));
 
 /* cache */
+if (commander.verbose >= 2) config.cache.debug = true;
 var cache = new lrufiles(config.cache);
-if (commander.flush) cache.purge();
+if (commander.flush) cache.purge(function(err){
+	if (err) return logger.error("could not flush cache", err);
+	if (commander.verbose) logger.info("flushed cache");
+});
 
 /* initialize express */
 var app = express();
@@ -207,7 +241,7 @@ if (config.app.hasOwnProperty("socket") && typeof config.app.socket === "string"
 	/* listen at socket */	
 	var mask = process.umask(0);
 	if (fs.existsSync(config.listen.socket)) {
-		console.log("unlinking old socket");
+		logger.info("unlinking old socket");
 		fs.unlinkSync(config.listen.socket);
 	}
 	app._server = app.listen(config.app.socket, function() {
@@ -215,23 +249,23 @@ if (config.app.hasOwnProperty("socket") && typeof config.app.socket === "string"
 			process.umask(mask);
 			var mask = null;
 		}
-		if (commander.verbose) console.error("listening on socket "+config.app.socket);
+		if (commander.verbose) logger.info("listening on socket %s", config.app.socket);
 	});
 } else if (config.app.hasOwnProperty("hostname") && typeof config.app.hostname === "string") {
 	/* listen at hostname and port */	
 	app._server = app.listen((parseInt(config.app.port,10) || 46000), config.app.hostname, function(){
-		if (commander.verbose) console.error("listening on *:"+(parseInt(config.app.port,10) || 46000));
+		if (commander.verbose) logger.info("listening on tcp %s:%d", config.app.hostname, (parseInt(config.app.port,10) || 46000));
 	});
 } else {
 	/* listen at port only */
 	app._server = app.listen((parseInt(config.app.port,10) || 46000), function(){
-		if (commander.verbose) console.error("listening on *:"+(parseInt(config.app.port,10) || 46000));
+		if (commander.verbose) logger.info("listening on tcp *:%d", (parseInt(config.app.port,10) || 46000));
 	});
 }
 
 /* gracefully shutdown on exit */
 process.on("exit", function () {
 	app._server.close(function() {
-		console.log("server stopped listening")
+		logger.info("server stopped listening. goodbye.")
 	});
 });
