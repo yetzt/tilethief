@@ -295,9 +295,9 @@ app.all('*', function(req, res){
 if (config.app.hasOwnProperty("socket") && typeof config.app.socket === "string") {
 	/* listen at socket */	
 	var mask = process.umask(0);
-	if (fs.existsSync(config.listen.socket)) {
+	if (fs.existsSync(config.app.socket)) {
 		logger.info("unlinking old socket");
-		fs.unlinkSync(config.listen.socket);
+		fs.unlinkSync(config.app.socket);
 	}
 	app._server = app.listen(config.app.socket, function() {
 		if (mask) {
