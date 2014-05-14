@@ -14,6 +14,7 @@ var express = require("express");
 var tracer = require("tracer");
 var color = require("cli-color");
 var async = require("async");
+var mime = require("mime");
 
 /* read package */
 var pkg = require(path.resolve(__dirname, "package.json"));
@@ -24,6 +25,7 @@ commander
 	.option("-f, --flush", "flush cache")
 	.option("-v, --verbose", "be verbose", function(v,total){ return total+=1; }, 0)
 	.option("-c, --config <file>", "config file")
+	.option("-u, --update-config", "update configuration format")
 	.parse(process.argv);
 
 /* logger */
@@ -127,13 +129,22 @@ if (config.hasOwnProperty("backend-url") && typeof config["backend-url"] === "st
 	});
 }
 
-/* setup generic async queue */ //FIXME: use this
-var queue = async.queue(function(task, callback) { 
-	task.fun(function(err, data){
-		task.callback(err, data);
+/* setup simple async queue */
+var queue = async.queue(function(f, callback) { 
+	f.nr = ++queue.cnt;
+	logger.debug("starting async task #%d", f.nr);
+	f(function(){
+		logger.debug("finished async task #%d", f.nr);
 		callback();
-	});
+	}); 
 }, (config.connections||23));
+queue.cnt = 0;
+queue.saturated = function(){
+	logger.debug("queue is full");
+};
+queue.drain = function(){
+	logger.debug("queue is empty");
+};
 
 /* cache */
 if (commander.verbose >= 2) config.cache.debug = true;
@@ -230,26 +241,33 @@ app.get('/:backend/:z/:x/:y.:ext', function(req,res){
 
 	if (cache.check(_tile_file, function(exists){
 		if (exists) {
-			// FIXME: set headers
+			logger.debug("serving %s from cache", _tile_file);
+			res.status(200);
+			res.set("Content-Type", mime.lookup(req.params.ext));
 			cache.stream(_tile_file).pipe(res);
 		} else {
 			var _tile_url = _backend_url(req.params.backend, req.params.z, req.params.x, req.params.y);
-			// FIXME: put this in queue
-			request.get(_tile_url).on('response', function(resp){
-				if (resp.statusCode === 200 && /^image\//.test(resp.headers["content-type"])) { // FIXME: check length and headers
-					var pass = new stream.PassThrough;
-					cache.add(_tile_file, pass, function(err, filename){
-						// FIXME: better logging
-						if (err) console.error("[tilethief] cache error writing:", _tile_file, err);
-						if (commander.verbose) console.error("[tilethief] cached:", _tile_file);
-					})
-					// FIXME: set headers
-					this.pipe(res);
-					this.pipe(pass);
-				} else {
-					// FIXME: send concrete tile
-					res.redirect('/404.png');
-				}
+			logger.debug("attempting to fetch %s", _tile_url);
+			queue.push(function(finished){
+				request.get(_tile_url).on('response', function(resp){
+					finished();
+					/* check status 200, content type is image/* and content-length is > 0 if given */
+					if (resp.statusCode === 200 && /^image\//.test(resp.headers["content-type"]) && (!resp.headers.hasOwnProperty("content-length") || parseInt(resp.headers["content-length"],10) > 0)) {
+						logger.debug("fetched %s", _tile_url);
+						var pass = new stream.PassThrough;
+						cache.add(_tile_file, pass, function(err, filename){
+							if (err) logger.error("could not write %s to cache", _tile_file, err);
+							if (commander.verbose) logger.info("cached %s", _tile_file);
+						})
+						res.status(200);
+						res.set("Content-Type", mime.lookup(req.params.ext));
+						this.pipe(res);
+						this.pipe(pass);
+					} else {
+						logger.debug("failed fettching %s with status %d and content type %s", _tile_url, resp.statusCode, resp.headers["content-type"]);
+						res.redirect('/404.png');
+					}
+				});
 			});
 		}
 	}));
