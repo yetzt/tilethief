@@ -1,6 +1,6 @@
 {
 	"name": "tilethief",
-	"version": "0.2.0",
+	"version": "0.2.1",
 	"description": "a mirroring map tile proxy",
 	"licenses": [{
 		"type": "Public Domain",
@@ -20,22 +20,15 @@
 		"type": "git",
 		"url": "https://github.com/yetzt/tilethief.git"
 	},
-	"keywords": [
-		"map",
-		"tiles",
-		"cache",
-		"mirror",
-		"tile",
-		"geo",
-		"osm",
-		"tms"
-	],
+	"keywords": ["map", "tiles", "tile", "tileserver", "tile server", "cache", "mirror", "tile", "geo", "osm", "tms", "<3"],
 	"dependencies": {
+		"commander": ">= 2.2.0",
+		"lru-files": ">= 0.0.4",
+		"cli-color": ">= 0.3.2",
 		"request": ">= 2.34.0",
 		"express": ">= 4.2.0",
 		"async": ">= 0.8.0",
-		"commander": ">= 2.2.0",
-		"lru-files": ">= 0.0.4"
+		"mime": ">= 1.2.11"
 	},
 	"engines": {
 		"node": ">= 0.10"
