@@ -23,3 +23,7 @@ tilethief --help
 ## Todo
 
 * Nginx sample config
+
+## License
+
+[Public Domain](http://unlicense.org/UNLICENSE)
