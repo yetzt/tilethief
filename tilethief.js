@@ -73,6 +73,43 @@ if (commander.config) {
 	}
 }
 
+/* ckeck for config file format and help users updating */
+if (!config.hasOwnProperty("app")) {
+	if (commander.updateConfig) {
+		var config = {
+			"app": {
+				"proxied": false,
+				"env": "production",
+				"socket": false,
+				"hostname": config.hostname,
+				"port": config.port
+			},
+			"cache": {
+				"dir": config.tiles,
+				"files": 65536,
+				"size": "1 GB",
+				"age": "4 Weeks",
+				"check": "1 Hour"
+			},
+			"backends": config.backends,
+			"backend-url": false,
+			"connections": 23,
+			"default-image": config["default-image"],
+			"allowed-extensions": config["allowed-extensions"],
+			"redirect-url": config["redirect-url"]
+		};
+		for (backend in config.backends) config.backends[backend].filetypes = [config.backends[backend].url.split(/\./).pop()];
+		/* save to file */
+		fs.writeFile(_configfile, 'module.exports = '+JSON.stringify(config,null,'\t')+';\n', function(err){
+			if (err) return logger.error("could not update config file", err);
+			logger.warn("updated config file %s", _configfile);
+		});
+	} else {
+		logger.error("please update your config file to the v0.2 format with --update-config");
+		process.exit();
+	}
+} 
+
 /* check if backend url is provides */
 if (config.hasOwnProperty("backend-url") && typeof config["backend-url"] === "string") {
 	request.get({
