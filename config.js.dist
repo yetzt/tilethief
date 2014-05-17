@@ -2,9 +2,10 @@ module.exports = {
 
 	/* express settings */
 	"app": {
-		"proxied": true,
+		"workers": 2,			// number of worker processes
+		"proxied": true,		// trust x-forwarded-for header
 		"env": "production",
-		"socket": false, // socket overrides hostname and port
+		"socket": false,		// socket overrides hostname and port
 		"hostname": "localhost",
 		"port": 46000
 	},
