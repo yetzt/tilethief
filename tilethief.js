@@ -163,7 +163,9 @@ if (cluster.isMaster) {
 	/* unlink old socket if present */
 	if (config.app.hasOwnProperty("socket") && typeof config.app.socket === "string" && fs.existsSync(config.app.socket)) {
 		logger.info("unlinking old socket");
-		fs.unlinkSync(config.app.socket);
+		if (!fs.unlinkSync(config.app.socket)) {
+			logger.error("could not unlink old socket");
+		};
 	}
 
 	/* determine number of workers */
@@ -330,12 +332,8 @@ if (cluster.isMaster) {
 	/* make express listen */
 	if (config.app.hasOwnProperty("socket") && typeof config.app.socket === "string") {
 		/* listen at socket */	
-		var mask = process.umask(0);
 		app._server = app.listen(config.app.socket, function() {
-			if (mask) {
-				process.umask(mask);
-				var mask = null;
-			}
+			fs.chmodSync(config.app.socket, 0777);
 			if (commander.verbose) logger.info("listening on socket %s", config.app.socket);
 		});
 	} else if (config.app.hasOwnProperty("hostname") && typeof config.app.hostname === "string") {
