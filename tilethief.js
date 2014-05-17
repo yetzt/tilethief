@@ -160,14 +160,23 @@ if (commander.flush) cache.purge(function(err){
 
 if (cluster.isMaster) {
 
+	/* unlink old socket if present */
+	if (config.app.hasOwnProperty("socket") && typeof config.app.socket === "string" && fs.existsSync(config.app.socket)) {
+		logger.info("unlinking old socket");
+		fs.unlinkSync(config.app.socket);
+	}
+
+	/* determine number of workers */
 	var _cpus = require('os').cpus().length;
 	if (!config.app.hasOwnProperty("workers") || isNaN(parseInt(config.app.workers,10))) config.app.workers = (_cpus-1);
 	config.app.workers = parseInt(config.app.workers,10);
 	if (config.app.workers <= 0) config.app.workers = 1;
 	if (config.app.workers > _cpus) config.app.workers = _cpus;
 	
+	/* launch workers */
 	for (var i = 0; i < config.app.workers; i++) cluster.fork();
 	
+	/* respawn worker on exit */
 	cluster.on('exit', function(worker) {
 		logger.debug("worker %d died", worker.id);
 		cluster.fork();
@@ -322,10 +331,6 @@ if (cluster.isMaster) {
 	if (config.app.hasOwnProperty("socket") && typeof config.app.socket === "string") {
 		/* listen at socket */	
 		var mask = process.umask(0);
-		if (fs.existsSync(config.app.socket)) {
-			logger.info("unlinking old socket");
-			fs.unlinkSync(config.app.socket);
-		}
 		app._server = app.listen(config.app.socket, function() {
 			if (mask) {
 				process.umask(mask);
