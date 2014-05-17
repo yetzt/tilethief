@@ -37,7 +37,7 @@ var logger = (function(){
 		case 1: var _level = "info"; break;
 		default: var _level = "debug"; break;
 	}
-	var _worker = (cluster.isMaster) ? 0 : cluster.worker.id;
+	var _worker = (cluster.isMaster) ? "MASTER" : "WORKER"+cluster.worker.id;
 	/* set colors on tty only */
 	if (process.stdout.isTTY) {
 		return new tracer.colorConsole({
