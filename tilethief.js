@@ -162,11 +162,15 @@ if (commander.flush) cache.purge(function(err){
 if (cluster.isMaster) {
 
 	/* unlink old socket if present */
-	if (config.app.hasOwnProperty("socket") && typeof config.app.socket === "string" && fs.existsSync(config.app.socket)) {
-		logger.info("unlinking old socket");
-		if (!fs.unlinkSync(config.app.socket)) {
+	if (config.app.hasOwnProperty("socket") && typeof config.app.socket === "string") {
+		if (fs.existsSync(config.app.socket)) {
+			logger.info("unlinking old socket");
+			fs.unlinkSync(config.app.socket);
+		}
+		if (fs.existsSync(config.app.socket)) {
 			logger.error("could not unlink old socket");
-		};
+			process.exit();
+		}
 	}
 
 	/* determine number of workers */
