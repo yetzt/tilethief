@@ -16,6 +16,7 @@ var tracer = require("tracer");
 var color = require("cli-color");
 var async = require("async");
 var mime = require("mime");
+var nsa = require("nsa");
 
 /* read package */
 var pkg = require(path.resolve(__dirname, "package.json"));
@@ -177,12 +178,25 @@ if (cluster.isMaster) {
 	
 	/* launch workers */
 	for (var i = 0; i < config.app.workers; i++) cluster.fork();
-	
+
 	/* respawn worker on exit */
 	cluster.on('exit', function(worker) {
 		logger.debug("worker %d died", worker.id);
 		cluster.fork();
 	});
+
+	/* send heartbeats */
+	if (config.hasOwnProperty("heartbeat")) {
+		var heartbeat = new nsa({
+			server: config.heartbeat,
+			interval: "10s"
+		}).start();
+		process.on("SIGINT", function(){
+			heartbeat.end(function(){
+				process.exit();
+			});
+		});
+	}
 
 } else {
 	
@@ -347,12 +361,5 @@ if (cluster.isMaster) {
 			if (commander.verbose) logger.info("listening on tcp *:%d", (parseInt(config.app.port,10) || 46000));
 		});
 	}
-
-	/* gracefully shutdown on exit */
-	process.on("exit", function () {
-		app._server.close(function() {
-			logger.info("worker stopped listening. goodbye.");
-		});
-	});
 
 }

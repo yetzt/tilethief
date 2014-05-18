@@ -18,6 +18,9 @@ module.exports = {
 		"age": "4 Weeks",
 		"check": "1 Hour"
 	},
+	
+	/* send heartbeats with nsa */
+	// "heartbeat": "udp4://127.0.0.1:65432",
 
 	/* load backends from url */
 	"backend-url": false, // point this to a json with the contents of config.backends

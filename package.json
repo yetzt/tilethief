@@ -1,6 +1,6 @@
 {
 	"name": "tilethief",
-	"version": "0.2.5",
+	"version": "0.2.6",
 	"description": "a mirroring map tile proxy",
 	"licenses": [{
 		"type": "Public Domain",
@@ -29,7 +29,8 @@
 		"express": ">= 4.2.0",
 		"tracer": ">= 0.7.1",
 		"async": ">= 0.8.0",
-		"mime": ">= 1.2.11"
+		"mime": ">= 1.2.11",
+		"nsa": ">= 0.0.1"
 	},
 	"engines": {
 		"node": ">= 0.10"
