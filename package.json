@@ -1,38 +1,54 @@
 {
-	"name": "tilethief",
-	"version": "0.2.6",
-	"description": "a mirroring map tile proxy",
-	"licenses": [{
-		"type": "Public Domain",
-		"url": "http://unlicense.org/UNLICENSE"
-	}],
-	"author": "Sebastian Vollnhals <sv@datenfreunde.com>",
-	"maintainers": [{
-		"name": "Sebastian Vollnhals",
-		"email": "sv@datenfreunde.com",
-		"web": "http://datenfreunde.com/"
-	}],
-	"main": "./tilethief.js",
-	"bin": {
-		"tilethief": "./tilethief.js"
-	},
-	"repository": {
-		"type": "git",
-		"url": "https://github.com/yetzt/tilethief.git"
-	},
-	"keywords": ["map", "tiles", "tile", "tileserver", "tile server", "cache", "mirror", "tile", "geo", "osm", "tms", "<3"],
-	"dependencies": {
-		"commander": ">= 2.2.0",
-		"lru-files": ">= 0.0.4",
-		"cli-color": ">= 0.3.2",
-		"request": ">= 2.34.0",
-		"express": ">= 4.2.0",
-		"tracer": ">= 0.7.1",
-		"async": ">= 0.8.0",
-		"mime": ">= 1.2.11",
-		"nsa": ">= 0.0.1"
-	},
-	"engines": {
-		"node": ">= 0.10"
-	}
+  "name": "tilethief",
+  "version": "1.0.0",
+  "description": "a mirroring map tile proxy",
+  "license": "Unlicense",
+  "author": "Sebastian Vollnhals <node@yetzt.me>",
+  "maintainers": [
+    {
+      "name": "Sebastian Vollnhals",
+      "email": "node@yetzt.me",
+      "web": "https://yetzt.me/"
+    }
+  ],
+  "main": "./lib/tilethief.js",
+  "bin": {
+    "tilethief": "./tilethief.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yetzt/tilethief.git"
+  },
+  "keywords": [
+    "map",
+    "tiles",
+    "tile",
+    "tileserver",
+    "tile server",
+    "cache",
+    "mirror",
+    "tile",
+    "geo",
+    "osm",
+    "tms",
+    "<3"
+  ],
+  "dependencies": {
+    "async": "^2.0.0-rc.3",
+    "daemon": "^1.1.0",
+    "debug": "^2.2.0",
+    "dur": "0.0.2",
+    "ellipse": "^0.5.5",
+    "lru-files": "0.0.7",
+    "mime": "^1.3.4",
+    "minimist": "^1.2.0",
+    "mkdirp": "^0.5.1",
+    "nsa": "^0.1.0",
+    "piss": "0.0.1",
+    "ps-node": "0.0.5",
+    "queue": "^3.1.0",
+    "read": "^1.0.7",
+    "request": "^2.71.0",
+    "uniq": "^1.0.1"
+  }
 }
